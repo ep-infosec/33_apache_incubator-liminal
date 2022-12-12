@@ -1,0 +1,91 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+---
+name: MyPipeline
+volumes:
+  - volume: myvol1
+    local:
+      path: /tmp/liminal_tests
+secrets:
+  - secret: aws
+    local_path_file: "~/.aws/credentials"
+images:
+  - image: my_python_task_img
+    type: python
+    source: write_inputs
+    no_cache: true
+  - image: my_parallelized_python_task_img
+    type: python
+    source: write_outputs
+    no_cache: true
+  - image: my_server_image
+    type: python_server
+    source: myserver
+    no_cache: true
+    endpoints:
+      - endpoint: /myendpoint1
+        module: my_server
+        function: myendpoint1func
+pipelines:
+  - pipeline: my_pipeline
+    owner: Bosco Albert Baracus
+    start_date: 1970-01-01
+    timeout_minutes: 45
+    schedule: 0 * 1 * *
+    default_arg_loaded: check
+    default_array_loaded: [2, 3, 4]
+    default_object_loaded:
+      key1: val1
+      key2: val2
+    metrics:
+      namespace: TestNamespace
+      backends: []
+    tasks:
+      - task: my_python_task
+        type: python
+        description: static input task
+        image: my_python_task_img
+        env_vars:
+          NUM_FILES: 10
+          NUM_SPLITS: 3
+          AWS_CONFIG_FILE: "/mnt/credentials"
+          AWS_PROFILE: "dev"
+        secrets:
+          - secret: aws
+            remote_path: "/mnt"
+        mounts:
+          - mount: mymount
+            volume: myvol1
+            path: /mnt/vol1
+        cmd: python -u write_inputs.py
+      - task: my_parallelized_python_task
+        type: python
+        description: parallelized python task
+        image: my_parallelized_python_task_img
+        env_vars:
+          FOO: BAR
+        executors: 3
+        mounts:
+          - mount: mymount
+            volume: myvol1
+            path: /mnt/vol1
+        cmd: python -u write_inputs.py
+services:
+  - service: my_python_server
+    description: my python server
+    image: my_server_image
